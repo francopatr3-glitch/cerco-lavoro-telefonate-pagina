@@ -21,9 +21,34 @@
 // Se n8n non risponde (telefono, n8n spento) non succede niente: resta il controllo di n8n ogni 5 minuti.
 window.addEventListener('message', function (e) {
   if (!/\.googleusercontent\.com$/.test(new URL(e.origin).hostname)) return;
-  if (!e.data || e.data.telefonate !== 'invia-subito') return;
-  fetch('http://localhost:5678/webhook/cerco-lavoro-invia-subito', { method: 'POST', mode: 'no-cors', targetAddressSpace: 'loopback' }).catch(function () {});
+  if (!e.data) return;
+  if (e.data.telefonate === 'invia-subito')
+    fetch('http://localhost:5678/webhook/cerco-lavoro-invia-subito', { method: 'POST', mode: 'no-cors', targetAddressSpace: 'loopback' }).catch(function () {});
+  if (e.data.telefonate === 'appunti-porta' && e.ports && e.ports[0]) appunti(e.ports[0]);
 });
+
+// «✎ Appunti della telefonata» (Franco, 19-10-2026): il programma dà a questa pagina un canale; questa pagina chiede
+// al Programma Appunti sul PC (http://localhost:5681) a che punto è la telefonata e gli dice quale azienda è aperta.
+// Ogni 2 secondi; se il Programma Appunti non risponde (telefono, PC senza il programma) si riprova ogni 30 secondi.
+var APPUNTI = 'http://localhost:5681', portaAppunti = null, giroAppunti = null;
+function appunti(porta) {
+  portaAppunti = porta;
+  porta.onmessage = function (m) {
+    var d = m.data || {};
+    if (d.tipo === 'aperta') manda('/aperta', d);
+    if (d.tipo === 'salvato') manda('/salvato', { id: d.id });
+  };
+  if (!giroAppunti) chiedi();
+}
+function manda(via, dati) {
+  fetch(APPUNTI + via, { method: 'POST', body: JSON.stringify(dati), headers: { 'Content-Type': 'text/plain' }, targetAddressSpace: 'loopback' }).catch(function () {});
+}
+function chiedi() {
+  fetch(APPUNTI + '/stato', { cache: 'no-store', targetAddressSpace: 'loopback' })
+    .then(function (r) { return r.json(); })
+    .then(function (s) { if (portaAppunti) portaAppunti.postMessage({ tipo: 'stato', stato: s }); giroAppunti = setTimeout(chiedi, 2000); })
+    .catch(function () { giroAppunti = setTimeout(chiedi, 30000); });
+}
 </script>
 </body>
 </html>

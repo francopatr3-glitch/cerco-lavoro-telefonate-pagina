@@ -18,8 +18,12 @@
 <script>
 // «✉ Invia subito» (Franco, 16-10-2026): il programma avvisa questa pagina, questa pagina chiama n8n sul PC
 // che fa subito il suo giro. La prima volta Chrome chiede il permesso per la rete locale.
-// Se n8n non risponde (telefono, n8n spento) non succede niente: resta il controllo di n8n ogni 5 minuti.
+// Se n8n non risponde (n8n spento) o si è sul telefono non succede niente: resta il controllo di n8n ogni 5 minuti.
+// Sul telefono n8n e il Programma Appunti non ci sono (stanno sul PC): la pagina non li cerca, altrimenti Chrome del
+// telefono chiede «vuole accedere ad altri servizi e app su questo dispositivo» (Franco, 20-10-2026).
+var TELEFONO = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || !!(navigator.userAgentData && navigator.userAgentData.mobile);
 window.addEventListener('message', function (e) {
+  if (TELEFONO) return;
   if (!/\.googleusercontent\.com$/.test(new URL(e.origin).hostname)) return;
   if (!e.data) return;
   if (e.data.telefonate === 'invia-subito')
@@ -29,7 +33,7 @@ window.addEventListener('message', function (e) {
 
 // «✎ Appunti della telefonata» (Franco, 19-10-2026): il programma dà a questa pagina un canale; questa pagina chiede
 // al Programma Appunti sul PC (http://localhost:5681) a che punto è la telefonata e gli dice quale azienda è aperta.
-// Ogni 2 secondi; se il Programma Appunti non risponde (telefono, PC senza il programma) si riprova ogni 30 secondi.
+// Ogni 2 secondi; se il Programma Appunti non risponde (PC senza il programma) si riprova ogni 30 secondi.
 var APPUNTI = 'http://localhost:5681', portaAppunti = null, giroAppunti = null;
 function appunti(porta) {
   portaAppunti = porta;

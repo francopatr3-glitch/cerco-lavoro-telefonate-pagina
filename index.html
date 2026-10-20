@@ -40,6 +40,7 @@ function appunti(porta) {
   porta.onmessage = function (m) {
     var d = m.data || {};
     if (d.tipo === 'aperta') manda('/aperta', d);
+    if (d.tipo === 'chiama') manda('/chiama', d);
     if (d.tipo === 'salvato') manda('/salvato', { id: d.id });
   };
   if (!giroAppunti) chiedi();

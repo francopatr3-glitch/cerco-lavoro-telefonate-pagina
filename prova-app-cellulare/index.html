@@ -43,22 +43,24 @@ registra.onclick = function () {
   registra.disabled = true; ascolta.hidden = true;
   scrivi('Chiedo il permesso del microfono…');
   navigator.mediaDevices.getUserMedia({ audio: true }).then(function (flusso) {
-    // il picco della voce, per sapere se il microfono ha sentito davvero qualcosa
-    var ac = new (window.AudioContext || window.webkitAudioContext)(), an = ac.createAnalyser(), picco = 0;
-    ac.createMediaStreamSource(flusso).connect(an);
-    var campioni = new Float32Array(an.fftSize);
-    var misura = setInterval(function () {
-      an.getFloatTimeDomainData(campioni);
-      for (var i = 0; i < campioni.length; i++) picco = Math.max(picco, Math.abs(campioni[i]));
-    }, 50);
     var pezzi = [], rec = new MediaRecorder(flusso);
     rec.ondataavailable = function (e) { if (e.data.size) pezzi.push(e.data); };
     rec.onstop = function () {
-      clearInterval(misura); flusso.getTracks().forEach(function (t) { t.stop(); }); ac.close();
-      var p = Math.round(picco * 100);
-      voce = new Audio(URL.createObjectURL(new Blob(pezzi, { type: rec.mimeType })));
-      scrivi(p >= 5 ? 'Microfono: FUNZIONA, voce sentita (picco ' + p + '%). Premi «Ascolta».' : 'Microfono acceso ma non ha sentito voce (picco ' + p + '%): riprova parlando più forte.');
-      ascolta.hidden = false; registra.disabled = false;
+      flusso.getTracks().forEach(function (t) { t.stop(); });
+      var registrata = new Blob(pezzi, { type: rec.mimeType });
+      voce = new Audio(URL.createObjectURL(registrata));
+      // il picco si misura sulla registrazione stessa: dice se la voce c'è davvero in quello che è stato registrato
+      // (la misura «dal vivo» del 21-10 dava 0% sul PC di Franco con la voce registrata giusta)
+      registrata.arrayBuffer().then(function (b) {
+        return new OfflineAudioContext(1, 1, 48000).decodeAudioData(b);
+      }).then(function (d) {
+        var picco = 0, c = d.getChannelData(0);
+        for (var i = 0; i < c.length; i++) picco = Math.max(picco, Math.abs(c[i]));
+        var p = Math.min(100, Math.round(picco * 100)), s = d.duration.toFixed(1).replace('.', ',');
+        scrivi(p >= 5 ? 'Microfono: FUNZIONA, voce registrata (' + s + ' s, picco ' + p + '%). Premi «Ascolta».' : 'Microfono acceso ma la registrazione è muta (' + s + ' s, picco ' + p + '%): riprova parlando più forte.');
+      }).catch(function () {
+        scrivi('Registrazione fatta, ma non riesco a misurarla: premi «Ascolta» per sentirla.');
+      }).then(function () { ascolta.hidden = false; registra.disabled = false; });
     };
     rec.start();
     scrivi('Registro: parla adesso, 5 secondi…');

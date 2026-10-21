@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B57A8">
+<title>Telefonate</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icona-192.png">
+<style>
+  html, body { margin: 0; height: 100%; background: #F6F7F9; color: #1E2430; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+  @media (prefers-color-scheme: dark) { html, body { background: #151A22; color: #E8ECF3; } }
+  iframe { border: 0; width: 100%; height: 100%; display: block; }
+  [hidden] { display: none !important; }
+  /* la pagina «senza rete» (manuale dell'app, regola 3): nostra, mai l'errore di Chrome */
+  #senza-rete { height: 100%; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 24px; text-align: center; }
+  #senza-rete .logo { width: 72px; height: 72px; border-radius: 18px; background: #0B57A8; display: grid; place-items: center; }
+  #senza-rete h1 { font-size: 20px; margin: 8px 0 0; }
+  #senza-rete p { font-size: 17px; margin: 0; max-width: 28em; }
+</style>
+</head>
+<body>
+<!-- Telefonate sul telefono, COPIA DI PROVA della fase F3 (21-10-2026): la cornice installabile con la pagina del telefono
+     (Telefono.html, ?pagina=telefono). Il telefono di Franco usa ancora la cornice di sempre (la pagina principale). -->
+<iframe id="app" title="Telefonate" allow="clipboard-write"></iframe>
+<div id="senza-rete" role="alert" hidden>
+  <div class="logo"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h3.5l1.6 4.4-2.3 1.5a12 12 0 0 0 7.3 7.3l1.5-2.3L21 15.5V19a2 2 0 0 1-2 2A17 17 0 0 1 3 5a2 2 0 0 1 2-2z"/></svg></div>
+  <h1>Telefonate ha bisogno di internet.</h1>
+  <p>Riprovo da sola quando torna la rete.</p>
+</div>
+<script>
+var EXEC = 'https://script.google.com/macros/s/AKfycbw6bQyCpDVbnNdTbeQGhK4unJSTBcxayKb8-JPw027iQxKj9HY9XkO9xEI3s9lwxQri/exec?pagina=telefono';
+// la prova della rete: una richiesta piccola a Google (dove sta Telefonate)
+var PROVA_RETE = 'https://script.google.com/favicon.ico';
+var app = document.getElementById('app'), cartello = document.getElementById('senza-rete');
+var porta = null, pronta = false, passi = 0, ricaricaDopo = false, attesa = null, giro = null;
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+
+// ---------- senza rete: il cartello, e Telefonate si riapre da sola quando torna la rete ----------
+function reteC() {
+  return fetch(PROVA_RETE + '?t=' + Date.now(), { mode: 'no-cors', cache: 'no-store' }).then(function () { return true; }, function () { return false; });
+}
+function senzaRete() {
+  // a Telefonate aperta ci pensa lei (avviso «Dati NON aggiornati»): il cartello solo se non si è ancora aperta
+  if (pronta) return;
+  app.hidden = true; cartello.hidden = false; app.removeAttribute('src');
+  clearTimeout(giro); giro = setTimeout(function () { reteC().then(function (ok) { if (ok) apri(); else senzaRete(); }); }, 5000);
+}
+function apri() {
+  clearTimeout(giro); cartello.hidden = true; app.hidden = false; app.src = EXEC;
+  // Telefonate si fa sentire appena è aperta; se dopo 15 secondi non si è fatta sentire, guardo se c'è la rete
+  clearTimeout(attesa);
+  attesa = setTimeout(function aspetta() {
+    if (pronta) return;
+    reteC().then(function (ok) { if (ok) attesa = setTimeout(aspetta, 15000); else senzaRete(); });
+  }, 15000);
+}
+window.addEventListener('offline', senzaRete);
+window.addEventListener('online', function () { if (!cartello.hidden) apri(); });
+if (navigator.onLine === false) senzaRete(); else apri();
+
+// ---------- il canale con Telefonate: tasto Indietro, titolo, versione nuova ----------
+window.addEventListener('message', function (e) {
+  if (!/\.googleusercontent\.com$/.test(new URL(e.origin).hostname)) return;
+  if (e.data && e.data.telefonate === 'telefono-porta' && e.ports && e.ports[0]) collega(e.ports[0]);
+});
+function collega(p) {
+  porta = p; pronta = true; clearTimeout(attesa);
+  p.onmessage = function (m) {
+    var d = m.data || {};
+    // un livello aperto (azienda, finestra, «Andamento») = un passo nella cronologia: il tasto Indietro lo chiude
+    if (d.tipo === 'livello') { passi++; history.pushState({ passo: passi }, ''); }
+    if (d.tipo === 'chiudi' && passi > 0) history.back();
+    if (d.tipo === 'titolo' && typeof d.testo === 'string') document.title = d.testo.slice(0, 80);
+    if (d.tipo === 'ricarica') ricarica();
+  };
+}
+window.addEventListener('popstate', function (e) {
+  var ora = (e.state && e.state.passo) || 0;
+  for (; passi > ora; passi--) if (porta) porta.postMessage({ tipo: 'indietro' });
+  passi = ora;
+  if (ricaricaDopo && passi === 0) location.reload();
+});
+// versione nuova: prima si torna al primo passo della cronologia, poi si ricarica (niente passi vecchi da premere a vuoto)
+function ricarica() {
+  if (passi > 0) { ricaricaDopo = true; history.go(-passi); } else location.reload();
+}
+</script>
+</body>
+</html>

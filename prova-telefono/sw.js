@@ -3,7 +3,7 @@
 // Tutte le pagine di francopatr3-glitch.github.io dividono lo stesso spazio: le copie hanno il prefisso di Telefonate
 // e a ogni versione si cancellano solo le vecchie di Telefonate. Per una versione nuova si cambia il numero qui sotto.
 const PREFISSO = 'telefonate-prova-';
-const COPIE = PREFISSO + '1';
+const COPIE = PREFISSO + '2';
 const FILE = ['./', 'manifest.webmanifest', 'icona-192.png', 'icona-512.png'];
 
 self.addEventListener('install', e => {

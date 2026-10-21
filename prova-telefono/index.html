@@ -33,7 +33,7 @@ var EXEC = 'https://script.google.com/macros/s/AKfycbw6bQyCpDVbnNdTbeQGhK4unJSTB
 // la prova della rete: una richiesta piccola a Google (dove sta Telefonate)
 var PROVA_RETE = 'https://script.google.com/favicon.ico';
 var app = document.getElementById('app'), cartello = document.getElementById('senza-rete');
-var porta = null, pronta = false, passi = 0, ricaricaDopo = false, attesa = null, giro = null;
+var porta = null, pronta = false, passi = 0, inVolo = 0, ricaricaDopo = false, attesa = null, giro = null;
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 
@@ -71,14 +71,17 @@ function collega(p) {
     var d = m.data || {};
     // un livello aperto (azienda, finestra, «Andamento») = un passo nella cronologia: il tasto Indietro lo chiude
     if (d.tipo === 'livello') { passi++; history.pushState({ passo: passi }, ''); }
-    if (d.tipo === 'chiudi' && passi > 0) history.back();
+    // un livello chiuso dentro Telefonate (freccia, ✕, «Mostra»): Telefonate l'ha già chiuso, qui si toglie il suo passo.
+    // Mai più passi indietro di quelli messi: un passo in più portava Telefonate su una pagina bianca (21-10-2026).
+    if (d.tipo === 'chiudi' && passi - inVolo > 0) { inVolo++; history.back(); }
     if (d.tipo === 'titolo' && typeof d.testo === 'string') document.title = d.testo.slice(0, 80);
     if (d.tipo === 'ricarica') ricarica();
   };
 }
 window.addEventListener('popstate', function (e) {
   var ora = (e.state && e.state.passo) || 0;
-  for (; passi > ora; passi--) if (porta) porta.postMessage({ tipo: 'indietro' });
+  // i passi tolti da «chiudi» sono già chiusi in Telefonate; gli altri sono il tasto Indietro del telefono
+  for (; passi > ora; passi--) { if (inVolo > 0) inVolo--; else if (porta) porta.postMessage({ tipo: 'indietro' }); }
   passi = ora;
   if (ricaricaDopo && passi === 0) location.reload();
 });

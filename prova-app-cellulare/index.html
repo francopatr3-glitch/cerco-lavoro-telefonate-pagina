@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B57A8">
+<title>Telefonate prova</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icona-192.png">
+<style>
+  html, body { margin: 0; height: 100%; background: #F6F7F9; font-family: Roboto, Arial, sans-serif; }
+  @media (prefers-color-scheme: dark) { html, body { background: #151A22; } }
+  body { display: flex; flex-direction: column; }
+  .prova { flex: none; background: #0B57A8; color: #fff; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 15px; }
+  .prova b { font-weight: 700; }
+  .prova button { font: inherit; font-weight: 700; border: 0; border-radius: 8px; padding: 8px 14px; background: #fff; color: #0B57A8; }
+  .prova button[hidden] { display: none; }
+  .esito { flex: 1 1 100%; min-width: 0; }
+  iframe { flex: 1; border: 0; width: 100%; display: block; }
+</style>
+</head>
+<body>
+<!-- Copia di PROVA della cornice di Telefonate (fase F1 dell'app sul telefono, 21-10-2026): prova 1 il microfono del
+     telefono, prova 2 l'app da installare con la sua icona. Telefonate dentro è quella vera; questa pagina non parla
+     con n8n né col Programma Appunti. Si toglie finite le prove. -->
+<div class="prova">
+  <b>Prova del microfono</b>
+  <button id="registra">● Registra 5 secondi</button>
+  <button id="ascolta" hidden>▶ Ascolta</button>
+  <span class="esito" id="esito"></span>
+</div>
+<iframe src="https://script.google.com/macros/s/AKfycbw6bQyCpDVbnNdTbeQGhK4unJSTBcxayKb8-JPw027iQxKj9HY9XkO9xEI3s9lwxQri/exec" title="Telefonate" allow="clipboard-write"></iframe>
+<script>
+// Come è aperta la pagina: «app installata» (dall'icona, a tutto schermo) o «scheda di Chrome».
+var APP = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
+var esito = document.getElementById('esito'), registra = document.getElementById('registra'), ascolta = document.getElementById('ascolta');
+var voce = null;
+function scrivi(t) { esito.textContent = (APP ? 'Aperta come app installata. ' : 'Aperta in una scheda di Chrome. ') + t; }
+scrivi('Premi «Registra 5 secondi» e parla.');
+
+registra.onclick = function () {
+  if (!navigator.mediaDevices || !window.MediaRecorder) { scrivi('Questo browser non sa registrare la voce.'); return; }
+  registra.disabled = true; ascolta.hidden = true;
+  scrivi('Chiedo il permesso del microfono…');
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function (flusso) {
+    // il picco della voce, per sapere se il microfono ha sentito davvero qualcosa
+    var ac = new (window.AudioContext || window.webkitAudioContext)(), an = ac.createAnalyser(), picco = 0;
+    ac.createMediaStreamSource(flusso).connect(an);
+    var campioni = new Float32Array(an.fftSize);
+    var misura = setInterval(function () {
+      an.getFloatTimeDomainData(campioni);
+      for (var i = 0; i < campioni.length; i++) picco = Math.max(picco, Math.abs(campioni[i]));
+    }, 50);
+    var pezzi = [], rec = new MediaRecorder(flusso);
+    rec.ondataavailable = function (e) { if (e.data.size) pezzi.push(e.data); };
+    rec.onstop = function () {
+      clearInterval(misura); flusso.getTracks().forEach(function (t) { t.stop(); }); ac.close();
+      var p = Math.round(picco * 100);
+      voce = new Audio(URL.createObjectURL(new Blob(pezzi, { type: rec.mimeType })));
+      scrivi(p >= 5 ? 'Microfono: FUNZIONA, voce sentita (picco ' + p + '%). Premi «Ascolta».' : 'Microfono acceso ma non ha sentito voce (picco ' + p + '%): riprova parlando più forte.');
+      ascolta.hidden = false; registra.disabled = false;
+    };
+    rec.start();
+    scrivi('Registro: parla adesso, 5 secondi…');
+    setTimeout(function () { rec.stop(); }, 5000);
+  }).catch(function (e) {
+    registra.disabled = false;
+    if (e && e.name === 'NotAllowedError') scrivi('Telefonate non può usare il microfono: Impostazioni › App › Chrome › Microfono.');
+    else if (e && e.name === 'NotFoundError') scrivi('Nessun microfono trovato.');
+    else scrivi('Il microfono non si è acceso: ' + (e && e.name || 'errore') + '.');
+  });
+};
+ascolta.onclick = function () { if (voce) { voce.currentTime = 0; voce.play(); } };
+</script>
+</body>
+</html>
